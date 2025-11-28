@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Molecular Orbital Theory Master</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Global Styles for Animation & Protection -->
+    <style>
+        /* Disable Text Selection Globally */
+        body {
+            -webkit-user-select: none; /* Safari */
+            -ms-user-select: none; /* IE 10 and IE 11 */
+            user-select: none; /* Standard syntax */
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .animate-shake {
+            animation: shake 0.3s ease-in-out;
+        }
+        
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            80% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop-in {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+
+    <!-- Anti-Copy & Anti-Inspection Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Disable Right Click
+            document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            // Disable Keyboard Shortcuts for Inspection
+            document.addEventListener('keydown', (e) => {
+                // F12
+                if (e.key === 'F12') {
+                    e.preventDefault();
+                    return false;
+                }
+                // Ctrl+Shift+I (Inspect), Ctrl+Shift+J (Console), Ctrl+Shift+C (Element)
+                if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) {
+                    e.preventDefault();
+                    return false;
+                }
+                // Ctrl+U (View Source)
+                if (e.ctrlKey && e.key === 'u') {
+                    e.preventDefault();
+                    return false;
+                }
+                // Ctrl+S (Save Page)
+                if (e.ctrlKey && e.key === 's') {
+                    e.preventDefault();
+                    return false;
+                }
+            });
+        });
+    </script>
+</head>
+<body class="bg-slate-900 text-white overflow-hidden">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // --- Constants & Data ---
+
+        const MAX_ELECTRONS = 20; 
+
+        // Group 1-15: s-p mixing (Pi before Sigma)
+        const QUESTIONS_G1_15 = [
+            { formula: "H₂", target: 2, name: "Hydrogen" },
+            { formula: "He₂", target: 4, name: "Helium Dimer" },
+            { formula: "Li₂", target: 6, name: "Lithium" },
+            { formula: "Be₂", target: 8, name: "Beryllium" },
+            { formula: "B₂", target: 10, name: "Boron" },
+            { formula: "C₂", target: 12, name: "Carbon" },
+            { formula: "N₂", target: 14, name: "Nitrogen" },
+            { formula: "N₂⁺", target: 13, name: "Nitrogen Ion (+)" },
+            { formula: "C₂²⁻", target: 14, name: "Acetylide Ion" },
+            { formula: "B₂⁺", target: 9, name: "Boron Ion (+)" }
+        ];
+
+        // Group 16-18: No s-p mixing (Sigma before Pi)
+        const QUESTIONS_G16_18 = [
+            { formula: "O₂", target: 16, name: "Oxygen" },
+            { formula: "F₂", target: 18, name: "Fluorine" },
+            { formula: "Ne₂", target: 20, name: "Neon" },
+            { formula: "O₂⁺", target: 15, name: "Dioxygenyl" },
+            { formula: "O₂⁻", target: 17, name: "Superoxide" },
+            { formula: "O₂²⁻", target: 18, name: "Peroxide" },
+            { formula: "F₂⁺", target: 17, name: "Fluorine Ion (+)" },
+            { formula: "F₂⁻", target: 19, name: "Fluorine Ion (-)" },
+            { formula: "O₂²⁺", target: 14, name: "Oxygen Ion (2+)" },
+            { formula: "Ne₂⁺", target: 19, name: "Neon Ion (+)" }
+        ];
+
+        const LAYOUT = {
+            ao_1s: 90, 
+            ao_2s: 70, 
+            ao_2p_center: 30, // Reference center for the AO 2p block
+            mo_s1: 95, mo_s1_star: 85,
+            mo_s2: 75, mo_s2_star: 65,
+            mo_level_1: 55, // First level of p-block MO
+            mo_level_2: 45, // Second level of p-block MO
+            mo_level_3: 25, // Antibonding Pi*
+            mo_level_4: 15  // Antibonding Sigma*
+        };
+
+        // --- Icons ---
+        const IconBase = ({ size = 24, className = "", children }) => (
+            <svg 
+                width={size} 
+                height={size} 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className}
+            >
+                {children}
+            </svg>
+        );
+
+        const ZoomIn = (props) => (
+            <IconBase {...props}>
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                <line x1="11" y1="8" x2="11" y2="14"></line>
+                <line x1="8" y1="11" x2="14" y2="11"></line>
+            </IconBase>
+        );
+
+        const ZoomOut = (props) => (
+            <IconBase {...props}>
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                <line x1="8" y1="11" x2="14" y2="11"></line>
+            </IconBase>
+        );
+
+        const RotateCcw = (props) => (
+            <IconBase {...props}>
+                <path d="M1 4v6h6"></path>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+            </IconBase>
+        );
+
+        const CheckCircle = (props) => (
+            <IconBase {...props}>
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </IconBase>
+        );
+
+        const ArrowUp = (props) => (
+            <IconBase {...props}>
+                <line x1="12" y1="19" x2="12" y2="5"></line>
+                <polyline points="5 12 12 5 19 12"></polyline>
+            </IconBase>
+        );
+
+        const ArrowDown = (props) => (
+            <IconBase {...props}>
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <polyline points="19 12 12 19 5 12"></polyline>
+            </IconBase>
+        );
+
+        const ChevronRight = (props) => (
+            <IconBase {...props}>
+                <polyline points="9 18 15 12 9 6"></polyline>
+            </IconBase>
+        );
+
+        const XCircle = (props) => (
+            <IconBase {...props}>
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="15" y1="9" x2="9" y2="15"></line>
+                <line x1="9" y1="9" x2="15" y2="15"></line>
+            </IconBase>
+        );
+
+        const Plus = (props) => (
+            <IconBase {...props}>
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </IconBase>
+        );
+
+        const Minus = (props) => (
+            <IconBase {...props}>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </IconBase>
+        );
+
+        const Star = (props) => (
+            <IconBase {...props}>
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </IconBase>
+        );
+
+        const Volume2 = (props) => (
+            <IconBase {...props}>
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </IconBase>
+        );
+
+        const VolumeX = (props) => (
+            <IconBase {...props}>
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <line x1="23" y1="9" x2="17" y2="15"></line>
+                <line x1="17" y1="9" x2="23" y2="15"></line>
+            </IconBase>
+        );
+
+        // --- Audio Logic ---
+        
+        // Sound effect for correct answer
+        const playSuccessSound = () => {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+                osc.frequency.exponentialRampToValueAtTime(1046.5, ctx.currentTime + 0.1); // C6
+
+                gain.gain.setValueAtTime(0, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start();
+                osc.stop(ctx.currentTime + 1.0);
+            } catch (e) {
+                console.error("Audio play failed", e);
+            }
+        };
+
+        // Sound effect for game completion (Victory Fanfare)
+        const playGameCompleteSound = () => {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                
+                const now = ctx.currentTime;
+                
+                // Fanfare Melody: G4 C5 E5 G5 C6 G5 C6 (8-bit style)
+                const notes = [
+                    { freq: 392.00, start: 0.0, dur: 0.15 }, // G4
+                    { freq: 523.25, start: 0.15, dur: 0.15 }, // C5
+                    { freq: 659.25, start: 0.30, dur: 0.15 }, // E5
+                    { freq: 783.99, start: 0.45, dur: 0.15 }, // G5
+                    { freq: 1046.50, start: 0.60, dur: 0.4 }, // C6
+                    { freq: 783.99, start: 1.0, dur: 0.2 }, // G5
+                    { freq: 1046.50, start: 1.2, dur: 0.8 }  // C6
+                ];
+
+                notes.forEach(note => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    
+                    osc.type = 'square'; // Distinct 8-bit victory sound
+                    osc.frequency.value = note.freq;
+                    
+                    gain.gain.setValueAtTime(0, now + note.start);
+                    gain.gain.linearRampToValueAtTime(0.15, now + note.start + 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + note.start + note.dur);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+
+                    osc.start(now + note.start);
+                    osc.stop(now + note.start + note.dur + 0.1);
+                });
+
+            } catch (e) {
+                console.error("Audio play failed", e);
+            }
+        };
+
+        // --- Music Hook ---
+        const useBackgroundMusic = (isPlaying) => {
+            const audioCtxRef = useRef(null);
+            const nextNoteTimeRef = useRef(0);
+            const timerRef = useRef(null);
+            
+            // "Happy Laboratory" Theme - Extended Version
+            // A cheerful, bouncy C Major melody with A/B/C sections to avoid monotony
+            const melodyRef = useRef([
+                // -- Section A: The Hook (Upbeat) --
+                { freq: 523.25, dur: 0.2 }, { freq: 659.25, dur: 0.2 }, { freq: 783.99, dur: 0.2 }, { freq: 523.25, dur: 0.2 }, // C-E-G-C
+                { freq: 880.00, dur: 0.2 }, { freq: 783.99, dur: 0.2 }, { freq: 659.25, dur: 0.4 }, // A-G-E
+                { freq: 523.25, dur: 0.2 }, { freq: 659.25, dur: 0.2 }, { freq: 783.99, dur: 0.2 }, { freq: 1046.50, dur: 0.2 }, // C-E-G-C(high)
+                { freq: 987.77, dur: 0.2 }, { freq: 880.00, dur: 0.2 }, { freq: 783.99, dur: 0.4 }, // B-A-G
+
+                // -- Section B: The Response (Slightly softer) --
+                { freq: 698.46, dur: 0.2 }, { freq: 783.99, dur: 0.2 }, { freq: 880.00, dur: 0.2 }, { freq: 698.46, dur: 0.2 }, // F-G-A-F
+                { freq: 659.25, dur: 0.2 }, { freq: 783.99, dur: 0.2 }, { freq: 659.25, dur: 0.4 }, // E-G-E
+                { freq: 587.33, dur: 0.2 }, { freq: 659.25, dur: 0.2 }, { freq: 698.46, dur: 0.2 }, { freq: 783.99, dur: 0.2 }, // D-E-F-G
+                { freq: 523.25, dur: 0.8 }, // C (Long resolve)
+
+                // -- Section C: The Bridge (Climbing up) --
+                { freq: 392.00, dur: 0.15 }, { freq: 523.25, dur: 0.15 }, // G-C
+                { freq: 392.00, dur: 0.15 }, { freq: 587.33, dur: 0.15 }, // G-D
+                { freq: 392.00, dur: 0.15 }, { freq: 659.25, dur: 0.15 }, // G-E
+                { freq: 392.00, dur: 0.15 }, { freq: 698.46, dur: 0.15 }, // G-F
+                { freq: 783.99, dur: 0.2 }, { freq: 880.00, dur: 0.2 }, { freq: 987.77, dur: 0.2 }, { freq: 1046.50, dur: 0.6 }, // G-A-B-C
+
+                // -- Breath/Pause --
+                { freq: 0, dur: 0.8 }
+            ]);
+            const noteIndexRef = useRef(0);
+
+            const scheduleNote = (ctx) => {
+                const lookahead = 25.0; // ms
+                const scheduleAheadTime = 0.1; // sec
+
+                if (nextNoteTimeRef.current < ctx.currentTime + scheduleAheadTime) {
+                    const note = melodyRef.current[noteIndexRef.current];
+                    
+                    if (note.freq > 0) { 
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        
+                        // Triangle wave gives a nice "gamey" but pleasant sound
+                        osc.type = 'triangle'; 
+                        osc.frequency.value = note.freq;
+                        
+                        const now = nextNoteTimeRef.current;
+                        gain.gain.setValueAtTime(0, now);
+                        // Short attack, bit of decay
+                        gain.gain.linearRampToValueAtTime(0.04, now + 0.05); 
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + note.dur - 0.02);
+
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+
+                        osc.start(now);
+                        osc.stop(now + note.dur);
+                    }
+
+                    nextNoteTimeRef.current += note.dur;
+                    noteIndexRef.current = (noteIndexRef.current + 1) % melodyRef.current.length;
+                }
+                
+                timerRef.current = setTimeout(() => scheduleNote(ctx), lookahead);
+            };
+
+            useEffect(() => {
+                if (isPlaying) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioContext) return;
+                    
+                    if (!audioCtxRef.current) {
+                        audioCtxRef.current = new AudioContext();
+                    }
+                    
+                    if (audioCtxRef.current.state === 'suspended') {
+                        audioCtxRef.current.resume();
+                    }
+
+                    nextNoteTimeRef.current = audioCtxRef.current.currentTime + 0.1;
+                    noteIndexRef.current = 0;
+                    scheduleNote(audioCtxRef.current);
+                } else {
+                    if (timerRef.current) clearTimeout(timerRef.current);
+                    if (audioCtxRef.current) {
+                        audioCtxRef.current.close();
+                        audioCtxRef.current = null;
+                    }
+                }
+
+                return () => {
+                    if (timerRef.current) clearTimeout(timerRef.current);
+                    if (audioCtxRef.current) {
+                        audioCtxRef.current.close();
+                        audioCtxRef.current = null;
+                    }
+                };
+            }, [isPlaying]);
+        };
+
+        // --- Components ---
+
+        const AOBox = ({ electrons }) => {
+            const hasUpSpin = electrons >= 1;
+            const hasDownSpin = electrons >= 2;
+            
+            return (
+                <div className="w-8 h-8 md:w-10 md:h-10 border-2 border-white/60 bg-white/10 flex items-center justify-center relative shadow-[0_0_10px_rgba(255,255,255,0.1)] rounded-sm">
+                    {hasUpSpin && <ArrowUp size={20} className="text-yellow-400 absolute -ml-1.5 md:-ml-2" strokeWidth={3} />}
+                    {hasDownSpin && <ArrowDown size={20} className="text-yellow-400 absolute ml-1.5 md:ml-2" strokeWidth={3} />}
+                </div>
+            );
+        };
+
+        const OrbitalBox = ({ x, y, electrons, label, type }) => {
+            return (
+                <div 
+                    className="absolute flex flex-col items-center justify-center transition-all duration-300 z-10"
+                    style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}
+                >
+                    {/* Render box first */}
+                    <AOBox electrons={electrons} />
+
+                    {/* Render label BELOW the box */}
+                    {label && (
+                        <div className={`text-[10px] md:text-xs font-bold mt-1 ${label.includes('*') ? 'text-red-400' : 'text-blue-300'}`}>
+                            {label}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const AOPBlock = ({ x, electrons }) => {
+            let remaining = electrons;
+            const boxCounts = [];
+
+            // Hund's Rule
+            for (let i = 0; i < 3; i++) {
+                if (remaining > 0) {
+                    boxCounts.push(1);
+                    remaining--;
+                } else {
+                    boxCounts.push(0);
+                }
+            }
+
+            // Pairing
+            for (let i = 0; i < 3; i++) {
+                if (remaining > 0 && boxCounts[i] === 1) {
+                    boxCounts[i] = 2;
+                    remaining--;
+                }
+            }
+            
+            return (
+                <div 
+                    className="absolute flex flex-col items-center justify-center transition-all duration-300 z-10"
+                    style={{ left: `${x}%`, top: `${LAYOUT.ao_2p_center}%`, transform: 'translate(-50%, -50%)' }}
+                >
+                    {/* Boxes */}
+                    <div className="flex flex-row gap-0.5">
+                        <AOBox electrons={boxCounts[0]} />
+                        <AOBox electrons={boxCounts[1]} />
+                        <AOBox electrons={boxCounts[2]} />
+                    </div>
+                    {/* Label BELOW */}
+                    <div className="text-[10px] md:text-xs font-bold mt-1 text-slate-400">2p</div>
+                </div>
+            );
+        };
+
+        const Connector = ({ x1, y1, x2, y2, dashed = true }) => (
+            <line 
+                x1={`${x1}%`} y1={`${y1}%`} 
+                x2={`${x2}%`} y2={`${y2}%`} 
+                stroke="rgba(255,255,255,0.15)" 
+                strokeWidth="1.5" 
+                strokeDasharray={dashed ? "4" : "0"} 
+            />
+        );
+
+        const calculateMODistribution = (totalElectrons, mode) => {
+            let orbitalOrder = [];
+
+            // --- MO Order ---
+            orbitalOrder.push({ id: 's1', name: 'σ1s', capacity: 2, group: '1s' });
+            orbitalOrder.push({ id: 's1*', name: 'σ*1s', capacity: 2, group: '1s*' });
+            orbitalOrder.push({ id: 's2', name: 'σ2s', capacity: 2, group: '2s' });
+            orbitalOrder.push({ id: 's2*', name: 'σ*2s', capacity: 2, group: '2s*' });
+
+            if (mode === 'G1-15') { // s-p mixing (pi before sigma)
+                orbitalOrder.push({ id: 'pi2p', name: 'π2p', capacity: 4, group: 'pi2p' }); 
+                orbitalOrder.push({ id: 'sig2p', name: 'σ2p', capacity: 2, group: 'sig2p' }); 
+            } else { // No mixing (sigma before pi)
+                orbitalOrder.push({ id: 'sig2p', name: 'σ2p', capacity: 2, group: 'sig2p' }); 
+                orbitalOrder.push({ id: 'pi2p', name: 'π2p', capacity: 4, group: 'pi2p' }); 
+            }
+
+            orbitalOrder.push({ id: 'pi2p*', name: 'π*2p', capacity: 4, group: 'pi2p*' }); 
+            orbitalOrder.push({ id: 'sig2p*', name: 'σ*2p', capacity: 2, group: 'sig2p*' }); 
+
+            let remainingMO = totalElectrons;
+            const moDistribution = {};
+
+            orbitalOrder.forEach(orb => {
+                let fillAmount = Math.min(remainingMO, orb.capacity);
+                moDistribution[orb.group] = fillAmount;
+                remainingMO -= fillAmount;
+            });
+
+            return moDistribution;
+        };
+
+        const calculateAODistribution = (totalElectrons) => {
+            const electronsA = Math.ceil(totalElectrons / 2);
+            const electronsB = Math.floor(totalElectrons / 2);
+
+            const distributeAO = (count) => {
+                let remaining = count;
+                const dist = { '1s': 0, '2s': 0, '2p': 0 };
+
+                dist['1s'] = Math.min(remaining, 2);
+                remaining -= dist['1s'];
+
+                if (remaining > 0) {
+                    dist['2s'] = Math.min(remaining, 2);
+                    remaining -= dist['2s'];
+                }
+
+                if (remaining > 0) {
+                    dist['2p'] = Math.min(remaining, 6);
+                }
+                return dist;
+            };
+
+            return { aoA: distributeAO(electronsA), aoB: distributeAO(electronsB) };
+        };
+
+        const LevelSelectorModal = ({ questions, currentIdx, onSelect, onClose, mode }) => {
+            const title = mode === 'G1-15' ? 'Groups 1-15 (s-p Mixing)' : 'Groups 16-18 (No Mixing)';
+
+            return (
+                <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="bg-slate-800 rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col">
+                        <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-white">{title}</h2>
+                            <button 
+                                onClick={onClose}
+                                className="text-slate-400 hover:text-white p-2 rounded-full hover:bg-slate-700 transition"
+                            >
+                                <XCircle size={24} />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {questions.map((q, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => onSelect(index)}
+                                    className={`
+                                        p-3 rounded-lg text-center transition-all 
+                                        ${index === currentIdx
+                                            ? 'bg-blue-600 border-2 border-blue-400 text-white font-bold shadow-lg scale-105'
+                                            : 'bg-slate-700 border border-slate-600 text-slate-200 hover:bg-slate-600'
+                                        }
+                                    `}
+                                >
+                                    <span className="text-lg font-bold block">{q.formula}</span>
+                                    <span className="text-xs text-slate-400 block">{q.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Success Modal Component ---
+        const SuccessModal = ({ onNext }) => {
+            return (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in pointer-events-auto"></div>
+                    <div className="relative bg-slate-800 border-2 border-yellow-400/50 p-8 rounded-2xl shadow-[0_0_50px_rgba(234,179,8,0.3)] text-center max-w-sm w-full animate-pop-in pointer-events-auto">
+                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 rounded-full p-4 border-4 border-slate-900">
+                            <Star size={40} className="text-yellow-400 fill-yellow-400 animate-spin-slow" />
+                        </div>
+                        
+                        <h2 className="text-3xl font-bold text-white mt-6 mb-2">Congratulations!</h2>
+                        <p className="text-slate-300 text-lg mb-8">Correct Answer!</p>
+                        
+                        <button 
+                            onClick={onNext}
+                            className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-white font-bold py-3 rounded-xl shadow-lg transform transition hover:scale-105 flex items-center justify-center gap-2"
+                        >
+                            Next Level <ChevronRight size={20} />
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [screen, setScreen] = useState('start'); 
+            const [mode, setMode] = useState('G1-15'); 
+            const [currentLevelIdx, setCurrentLevelIdx] = useState(0);
+            const [userElectronCount, setUserElectronCount] = useState(0);
+            const [scale, setScale] = useState(1);
+            const [showFeedback, setShowFeedback] = useState(null); 
+            const [shake, setShake] = useState(false);
+            const [maxLimitShake, setMaxLimitShake] = useState(false); 
+            const [showLevelSelector, setShowLevelSelector] = useState(false);
+            const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+
+            const currentQuestions = mode === 'G1-15' ? QUESTIONS_G1_15 : QUESTIONS_G16_18;
+            const currentQ = currentQuestions[currentLevelIdx];
+            const totalLevels = currentQuestions.length;
+
+            useBackgroundMusic(isMusicPlaying);
+
+            useEffect(() => {
+                setUserElectronCount(0);
+                setShowFeedback(null);
+            }, [currentLevelIdx, mode]);
+
+            // Trigger Victory Sound on Game Completion
+            useEffect(() => {
+                if (screen === 'end') {
+                    playGameCompleteSound();
+                }
+            }, [screen]);
+
+            const moDistribution = calculateMODistribution(userElectronCount, mode);
+            const { aoA: aoDistributionA, aoB: aoDistributionB } = calculateAODistribution(userElectronCount);
+
+            const getPBlockConfig = () => {
+                if (mode === 'G1-15') {
+                    return {
+                        bottom: { label: 'π2p', type: 'pi', group: 'pi2p' },
+                        top: { label: 'σ2p', type: 'sigma', group: 'sig2p' }
+                    };
+                } else {
+                    return {
+                        bottom: { label: 'σ2p', type: 'sigma', group: 'sig2p' }, 
+                        top: { label: 'π2p', type: 'pi', group: 'pi2p' }
+                    };
+                }
+            };
+
+            const pConfig = getPBlockConfig();
+
+            const handleStart = (selectedMode) => {
+                setMode(selectedMode);
+                setScreen('game');
+                setCurrentLevelIdx(0);
+                setIsMusicPlaying(true); // <--- Auto-enable music on start
+            };
+
+            const handleSelectLevel = (index) => {
+                setCurrentLevelIdx(index);
+                setUserElectronCount(0);
+                setShowFeedback(null);
+                setShowLevelSelector(false);
+            };
+
+            const handleAddElectron = () => {
+                if (userElectronCount < MAX_ELECTRONS) { 
+                    setUserElectronCount(c => c + 1);
+                    setShowFeedback(null);
+                } else {
+                    setMaxLimitShake(true);
+                    setTimeout(() => setMaxLimitShake(false), 500);
+                }
+            };
+
+            const handleRemoveElectron = () => {
+                if (userElectronCount > 0) {
+                    setUserElectronCount(c => c - 1);
+                    setShowFeedback(null);
+                }
+            };
+
+            const handleCheck = () => {
+                if (userElectronCount === currentQ.target) {
+                    setShowFeedback('correct');
+                    playSuccessSound(); // Play sound on success
+                } else {
+                    setShowFeedback('wrong');
+                    setShake(true);
+                    setTimeout(() => setShake(false), 500);
+                }
+            };
+
+            const handleNextLevel = () => {
+                if (currentLevelIdx < totalLevels - 1) {
+                    setCurrentLevelIdx(c => c + 1);
+                    setShowFeedback(null);
+                } else {
+                    setScreen('end');
+                }
+            };
+
+            const renderDegeneratePair = (y, groupName, label) => {
+                const totalElec = moDistribution[groupName] || 0;
+                let leftE = 0;
+                let rightE = 0;
+                
+                if (totalElec === 1) { leftE = 1; rightE = 0; }
+                else if (totalElec === 2) { leftE = 1; rightE = 1; }
+                else if (totalElec === 3) { leftE = 2; rightE = 1; }
+                else if (totalElec === 4) { leftE = 2; rightE = 2; }
+
+                return (
+                    <React.Fragment>
+                        {/* Box 1 - Left - No label inside */}
+                        <OrbitalBox x={45} y={y} label={null} electrons={leftE} type={label} />
+                        {/* Box 2 - Right - No label inside */}
+                        <OrbitalBox x={55} y={y} label={null} electrons={rightE} type={label} />
+                        
+                        {/* Centered Label for the pair */}
+                        <div 
+                            className={`absolute text-[10px] md:text-xs font-bold ${label.includes('*') ? 'text-red-400' : 'text-blue-300'}`}
+                            style={{ 
+                                left: '50%', 
+                                top: `${y}%`, 
+                                transform: 'translate(-50%, 25px)' // Offset down to clear the boxes
+                            }}
+                        >
+                            {label}
+                        </div>
+
+                        <svg className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-visible z-0">
+                            <Connector x1={20} y1={LAYOUT.ao_2p_center} x2={45} y2={y} />
+                            <Connector x1={80} y1={LAYOUT.ao_2p_center} x2={55} y2={y} />
+                        </svg>
+                    </React.Fragment>
+                );
+            };
+
+            const renderSingle = (y, groupName, label) => {
+                const count = moDistribution[groupName] || 0;
+                return (
+                    <React.Fragment>
+                        <OrbitalBox x={50} y={y} label={label} electrons={count} type={label} />
+                        <svg className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-visible z-0">
+                            <Connector x1={20} y1={y} x2={50} y2={y} dashed={false} />
+                            <Connector x1={80} y1={y} x2={50} y2={y} dashed={false} />
+
+                            {(groupName === 'sig2p' || groupName === 'sig2p*') && (
+                                <React.Fragment>
+                                    <Connector x1={20} y1={LAYOUT.ao_2p_center} x2={50} y2={y} />
+                                    <Connector x1={80} y1={LAYOUT.ao_2p_center} x2={50} y2={y} />
+                                </React.Fragment>
+                            )}
+                        </svg>
+                    </React.Fragment>
+                );
+            };
+
+            if (screen === 'start') {
+                return (
+                    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-black opacity-50 z-0"></div>
+                        
+                        <div className="z-10 text-center max-w-4xl w-full">
+                            <h1 className="text-4xl md:text-7xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 drop-shadow-lg">
+                                Molecular Orbital<br/>Theory Master
+                            </h1>
+                            <p className="text-lg md:text-2xl text-slate-400 mb-12 tracking-wide font-light">
+                                Interactive Diatomic Molecule Builder
+                            </p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full px-4">
+                                <button 
+                                    onClick={() => handleStart('G1-15')}
+                                    className="group relative p-8 bg-slate-800/80 backdrop-blur-sm rounded-2xl border-2 border-slate-700 hover:border-blue-500 transition-all hover:scale-105 hover:shadow-[0_0_30px_rgba(59,130,246,0.2)] text-left"
+                                >
+                                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    <div className="flex justify-between items-start mb-4">
+                                        <h3 className="text-3xl font-bold text-blue-400">Group 1-15</h3>
+                                        <div className="bg-blue-500/20 text-blue-300 text-xs px-2 py-1 rounded">B₂, C₂, N₂</div>
+                                    </div>
+                                    <p className="text-slate-300 mb-4 font-medium">s-p Orbital Mixing</p>
+                                    <div className="text-sm text-slate-400 flex flex-col gap-1">
+                                        <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> σ₂p energy > π₂p energy</div>
+                                        <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> π orbital fills first</div>
+                                    </div>
+                                </button>
+
+                                <button 
+                                    onClick={() => handleStart('G16-18')}
+                                    className="group relative p-8 bg-slate-800/80 backdrop-blur-sm rounded-2xl border-2 border-slate-700 hover:border-purple-500 transition-all hover:scale-105 hover:shadow-[0_0_30px_rgba(168,85,247,0.2)] text-left"
+                                >
+                                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    <div className="flex justify-between items-start mb-4">
+                                        <h3 className="text-3xl font-bold text-purple-400">Group 16-18</h3>
+                                        <div className="bg-purple-500/20 text-purple-300 text-xs px-2 py-1 rounded">O₂, F₂, Ne₂</div>
+                                    </div>
+                                    <p className="text-slate-300 mb-4 font-medium">Standard (No Mixing)</p>
+                                    <div className="text-sm text-slate-400 flex flex-col gap-1">
+                                        <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-purple-500"></div> σ₂p energy &lt; π₂p energy</div>
+                                        <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-purple-500"></div> σ orbital fills first</div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (screen === 'end') {
+                return (
+                    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4">
+                        <div className="text-center animate-bounce mb-8">
+                            <CheckCircle size={80} className="text-green-500 mx-auto mb-4" />
+                            <h1 className="text-5xl font-bold text-white mb-2">Congratulations!</h1>
+                            <p className="text-2xl text-slate-400">You have mastered Molecular Orbital Theory.</p>
+                        </div>
+                        <button 
+                            onClick={() => setScreen('start')}
+                            className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-full font-bold transition-all flex items-center gap-2 shadow-lg hover:shadow-blue-500/50"
+                        >
+                            <RotateCcw size={20} /> Restart Simulator
+                        </button>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="h-screen bg-slate-900 text-white overflow-hidden flex flex-col relative">
+                    
+                    {/* Modal */}
+                    {showLevelSelector && (
+                        <LevelSelectorModal 
+                            questions={currentQuestions} 
+                            currentIdx={currentLevelIdx} 
+                            onSelect={handleSelectLevel} 
+                            onClose={() => setShowLevelSelector(false)}
+                            mode={mode}
+                        />
+                    )}
+
+                    {/* Success Overlay Modal */}
+                    {showFeedback === 'correct' && (
+                        <SuccessModal onNext={handleNextLevel} />
+                    )}
+
+                    {/* Top Bar */}
+                    <div className="h-16 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-4 md:px-6 z-20 shadow-lg shrink-0">
+                        <div className="flex items-center gap-2 md:gap-4">
+                            <button
+                                onClick={() => setShowLevelSelector(true)}
+                                className="bg-slate-700 hover:bg-slate-600 transition-colors px-3 py-1.5 rounded text-sm font-mono text-slate-300 flex items-center gap-2 active:scale-95 border border-slate-600"
+                            >
+                                <span className="font-bold text-white">Level {currentLevelIdx + 1}</span>
+                                <span className="text-slate-400">/ {totalLevels}</span>
+                                <ChevronRight size={14} className="ml-1"/>
+                            </button>
+
+                            <div className="h-8 w-px bg-slate-700 mx-2 hidden md:block"></div>
+
+                            <h1 className="text-xl md:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                                {currentQ.formula}
+                            </h1>
+                            <span className="hidden md:inline text-slate-500 text-sm font-medium tracking-wide uppercase">
+                                {currentQ.name}
+                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {/* Music Toggle */}
+                            <button 
+                                onClick={() => setIsMusicPlaying(!isMusicPlaying)} 
+                                className={`p-2 rounded transition ${isMusicPlaying ? 'text-blue-400 hover:text-blue-300 hover:bg-blue-900/30' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                                title={isMusicPlaying ? "Mute Music" : "Play Music"}
+                            >
+                                {isMusicPlaying ? <Volume2 size={20}/> : <VolumeX size={20}/>}
+                            </button>
+
+                            <div className="h-4 w-px bg-slate-700 mx-1"></div>
+
+                            <button onClick={() => setScale(s => Math.max(0.5, s - 0.1))} className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition"><ZoomOut size={20}/></button>
+                            <span className="text-xs text-slate-500 w-10 text-center hidden sm:inline font-mono">{Math.round(scale * 100)}%</span>
+                            <button onClick={() => setScale(s => Math.min(2, s + 0.1))} className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition"><ZoomIn size={20}/></button>
+                        </div>
+                    </div>
+
+                    {/* Main Content Area */}
+                    <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+                        
+                        {/* MO Diagram Canvas */}
+                        <div className="flex-1 w-full overflow-auto bg-slate-900 relative cursor-grab active:cursor-grabbing custom-scrollbar">
+                            <div 
+                                className="w-full h-full min-h-[750px] min-w-[500px] relative origin-top-center transition-transform duration-200 ease-out"
+                                style={{ 
+                                    transform: `scale(${scale})`,
+                                    height: '1100px' // Hardcoded inner height for scrolling
+                                }}
+                            >
+                                {/* Energy Axis on Left Hand Side - Extended downwards */}
+                                <div className="absolute left-2 top-1/2 -translate-y-1/2 h-[95%] flex items-center">
+                                    {/* Label */}
+                                    <div className="-rotate-90 text-slate-500 font-bold tracking-[0.2em] text-sm whitespace-nowrap mr-2">
+                                        ENERGY
+                                    </div>
+                                    {/* Arrow Line */}
+                                    <div className="w-px h-full bg-slate-500 relative">
+                                        <div className="absolute -top-1 -left-1 w-2.5 h-2.5 border-t border-r border-slate-500 -rotate-45"></div>
+                                    </div>
+                                </div>
+
+                                {/* ATOMIC ORBITALS - Left Atom A */}
+                                <div className="absolute left-[20%] h-[90%] top-[5%] w-px border-l border-dashed border-slate-800"></div>
+                                <div 
+                                    className="absolute text-slate-400 font-bold bg-slate-800/80 backdrop-blur-md px-3 py-1 rounded-full border border-slate-700 shadow-sm z-20 text-sm" 
+                                    style={{ left: '20%', top: '10px', transform: 'translateX(-50%)' }}
+                                >
+                                    Atom A
+                                </div>
+                                
+                                <OrbitalBox x={20} y={LAYOUT.ao_1s} label="1s" electrons={aoDistributionA['1s']} type="s" />
+                                <OrbitalBox x={20} y={LAYOUT.ao_2s} label="2s" electrons={aoDistributionA['2s']} type="s" />
+                                <AOPBlock x={20} electrons={aoDistributionA['2p']} />
+
+                                {/* ATOMIC ORBITALS - Right Atom B */}
+                                <div className="absolute left-[80%] h-[90%] top-[5%] w-px border-l border-dashed border-slate-800"></div>
+                                <div 
+                                    className="absolute text-slate-400 font-bold bg-slate-800/80 backdrop-blur-md px-3 py-1 rounded-full border border-slate-700 shadow-sm z-20 text-sm" 
+                                    style={{ left: '80%', top: '10px', transform: 'translateX(-50%)' }}
+                                >
+                                    Atom B
+                                </div>
+                                
+                                <OrbitalBox x={80} y={LAYOUT.ao_1s} label="1s" electrons={aoDistributionB['1s']} type="s" />
+                                <OrbitalBox x={80} y={LAYOUT.ao_2s} label="2s" electrons={aoDistributionB['2s']} type="s" />
+                                <AOPBlock x={80} electrons={aoDistributionB['2p']} />
+
+                                {/* MOLECULAR ORBITALS - Center Column */}
+                                
+                                {/* 1s Block */}
+                                <OrbitalBox x={50} y={LAYOUT.mo_s1} label="σ1s" electrons={moDistribution['1s']} type="sigma" />
+                                <OrbitalBox x={50} y={LAYOUT.mo_s1_star} label="σ*1s" electrons={moDistribution['1s*']} type="sigma*" />
+                                
+                                {/* 2s Block */}
+                                <OrbitalBox x={50} y={LAYOUT.mo_s2} label="σ2s" electrons={moDistribution['2s']} type="sigma" />
+                                <OrbitalBox x={50} y={LAYOUT.mo_s2_star} label="σ*2s" electrons={moDistribution['2s*']} type="sigma*" />
+
+                                {/* 2p Block - Bonding */}
+                                {pConfig.bottom.type === 'pi' 
+                                    ? renderDegeneratePair(LAYOUT.mo_level_1, pConfig.bottom.group, pConfig.bottom.label) 
+                                    : renderSingle(LAYOUT.mo_level_1, pConfig.bottom.group, pConfig.bottom.label)
+                                }
+
+                                {pConfig.top.type === 'pi'
+                                    ? renderDegeneratePair(LAYOUT.mo_level_2, pConfig.top.group, pConfig.top.label)
+                                    : renderSingle(LAYOUT.mo_level_2, pConfig.top.group, pConfig.top.label)
+                                }
+
+                                {/* 2p Block - Antibonding (Order is fixed for these usually: Pi* then Sigma*) */}
+                                {renderDegeneratePair(LAYOUT.mo_level_3, 'pi2p*', 'π*2p')}
+                                {renderSingle(LAYOUT.mo_level_4, 'sig2p*', 'σ*2p')}
+
+                                {/* Static Connectors for S-blocks */}
+                                <svg className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
+                                    {/* 1s Connectors */}
+                                    <Connector x1={20} y1={LAYOUT.ao_1s} x2={50} y2={LAYOUT.mo_s1} />
+                                    <Connector x1={80} y1={LAYOUT.ao_1s} x2={50} y2={LAYOUT.mo_s1} />
+                                    <Connector x1={20} y1={LAYOUT.ao_1s} x2={50} y2={LAYOUT.mo_s1_star} />
+                                    <Connector x1={80} y1={LAYOUT.ao_1s} x2={50} y2={LAYOUT.mo_s1_star} />
+
+                                    {/* 2s Connectors */}
+                                    <Connector x1={20} y1={LAYOUT.ao_2s} x2={50} y2={LAYOUT.mo_s2} />
+                                    <Connector x1={80} y1={LAYOUT.ao_2s} x2={50} y2={LAYOUT.mo_s2} />
+                                    <Connector x1={20} y1={LAYOUT.ao_2s} x2={50} y2={LAYOUT.mo_s2_star} />
+                                    <Connector x1={80} y1={LAYOUT.ao_2s} x2={50} y2={LAYOUT.mo_s2_star} />
+                                </svg>
+
+                            </div>
+                        </div>
+
+                        {/* Controls Panel - Right on Desktop, Bottom on Mobile */}
+                        <div className="w-full md:w-80 bg-slate-800 border-t md:border-t-0 md:border-l border-slate-700 p-4 md:p-6 flex flex-col shrink-0 z-30 shadow-[-10px_0_20px_rgba(0,0,0,0.3)]">
+                            
+                            {/* Stats */}
+                            <div className="mb-6 flex flex-row md:flex-col justify-between items-center md:items-stretch gap-4">
+                                <div className="text-center bg-slate-900/50 p-4 rounded-xl border border-slate-700 flex-1">
+                                    <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Total Electrons</div>
+                                    <div className={`text-4xl font-mono font-bold ${maxLimitShake ? 'text-red-500 animate-shake' : 'text-white'}`}>
+                                        {userElectronCount}
+                                    </div>
+                                    {/* Target display removed */}
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="grid grid-cols-2 gap-3 mb-6">
+                                <button 
+                                    onClick={handleRemoveElectron}
+                                    disabled={userElectronCount === 0}
+                                    className="flex flex-col items-center justify-center p-4 bg-slate-700 hover:bg-red-500/20 hover:text-red-400 text-slate-300 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed border border-slate-600 hover:border-red-500/50"
+                                >
+                                    <Minus size={24} className="mb-1" />
+                                    <span className="text-sm font-bold">Remove e⁻</span>
+                                </button>
+                                <button 
+                                    onClick={handleAddElectron}
+                                    className="flex flex-col items-center justify-center p-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition shadow-lg shadow-blue-900/20"
+                                >
+                                    <Plus size={24} className="mb-1" />
+                                    <span className="text-sm font-bold">Add e⁻</span>
+                                </button>
+                            </div>
+
+                            {/* Check Button & Feedback */}
+                            <div className="mt-auto">
+                                {!showFeedback && (
+                                    <button 
+                                        onClick={handleCheck}
+                                        className={`w-full py-4 rounded-xl font-bold text-lg transition flex items-center justify-center gap-2
+                                            ${shake ? 'animate-shake bg-red-500' : 'bg-emerald-600 hover:bg-emerald-500'}
+                                        `}
+                                    >
+                                        Check Diagram
+                                    </button>
+                                )}
+
+                                {showFeedback === 'wrong' && (
+                                    <div className="bg-red-500/10 border border-red-500/50 text-red-200 p-4 rounded-xl text-center animate-in fade-in slide-in-from-bottom-2">
+                                        <div className="font-bold text-lg mb-1">Incorrect</div>
+                                        <p className="text-sm opacity-80">Electron count does not match.</p>
+                                    </div>
+                                )}
+
+                                {/* Side panel feedback preserved but button is in Modal now */}
+                                {showFeedback === 'correct' && (
+                                    <div className="bg-green-500/10 border border-green-500/50 text-green-200 p-4 rounded-xl text-center animate-in fade-in slide-in-from-bottom-2 opacity-50">
+                                        <div className="font-bold text-lg mb-2 flex items-center justify-center gap-2">
+                                            <CheckCircle size={20} /> Correct!
+                                        </div>
+                                        {/* Button removed from side panel to encourage using Modal */}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
